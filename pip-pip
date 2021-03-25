@@ -79,7 +79,7 @@ not_ready = { 'yum' :    [ ( 'x86_64',  7, 1 ),
                            ( 'aarch64', 8, 1 ) ]
 }
 
-git_url_tab   = { 'github'   : 'https://github.com/RIKEN-SysSoft' }
+git_url_tab   = { 'github'   : 'https://github.com/procinproc' }
 
 git_repo_tab  = { 'github'   : { 'glibc': 'PiP-glibc.git',
                                  'pip'  : 'PiP.git',
