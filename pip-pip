@@ -636,7 +636,7 @@ def prefix_path( prefix, how, ver ):
         return prefix
     return os.path.join( prefix,
                          arch + '_' +
-                         'cetos-' + str( centos_version ) + '_' +
+                         'centos-' + str( centos_version ) + '_' +
                          how + '_' +
                          'pip-' + str( ver ) )
 
@@ -1088,19 +1088,6 @@ def install_git( prefix, repo, pip_ver, work_dir, log_fs  ):
     if not execute( pip_dir, [ 'make', 'doc-install' ], log_fs ):
         return False, retuple
 
-    if not ARGS.notest:
-        message( [ MSG_PREFIX1, 'Testing', repo_pip ], log=log_fs )
-        if not git_clone( work_dir, repo_test, '', log_fs ):
-            return False, retuple
-        test_dir = os.path.join( work_dir, pip + '-Testsuite' )
-        configure = os.path.join( test_dir, 'configure' )
-        if not execute( test_dir,
-                        [ configure, '--with-pip=' + prefix_dir ],
-                        log_fs ):
-            return False, retuple
-        if not execute( test_dir, [ 'make', 'test' ], log_fs, env=threshold ):
-            return False, retuple
-
     if ARGS.noglibc or ARGS.nogdb:
         message( [ MSG_PREFIX1,
                    'Skipping PiP-gdb build (--noglibc or --nogdb)' ],
@@ -1160,6 +1147,22 @@ def install_git( prefix, repo, pip_ver, work_dir, log_fs  ):
             test_script = os.path.join( gdb_dir, 'test.sh' )
             if not execute( gdb_dir, [ test_script ], log_fs ):
                 return False, retuple
+
+    # all packages seems to be installed
+    # now test all of them
+    if not ARGS.notest:
+        message( [ MSG_PREFIX1, 'Testing', repo_pip ], log=log_fs )
+        if not git_clone( work_dir, repo_test, '', log_fs ):
+            return False, retuple
+        test_dir  = os.path.join( work_dir, pip + '-Testsuite' )
+        configure = os.path.join( test_dir, 'configure' )
+        if not execute( test_dir,
+                        [ configure, '--with-pip=' + prefix_dir ],
+                        log_fs ):
+            return False, retuple
+        if not execute( test_dir, [ 'make', 'test' ], log_fs, env=threshold ):
+            return False, retuple
+
     if not FLAG_KEEP:
         delete_work_dir( work_dir )
     return True, retuple
@@ -1461,7 +1464,7 @@ if not ARGS.sudo and DRYRUN:
             warn_newline = True
             message( [] )
         warn_msg( [ "'--sudo' option is required with yum and docker installations" ] )
-if ARGS.centos != '':
+if not ARGS.centos is []:
     if not 'docker' in how_list:
         if not warn_newline:
             warn_newline = True
