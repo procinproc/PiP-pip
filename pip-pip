@@ -207,6 +207,53 @@ def concat_urls( url0, url1 ):
 
 NULL_FS = open( os.devnull, 'w' )
 
+def execute( wd, cmd, log_fs, silent=False, env=[] ):
+    "execute a Linux command"
+    global ERROR
+
+    if wd is not None:
+        cmd_str = ' '.join( [ 'cd', wd, '&&' ] + env + cmd )
+    else:
+        cmd_str = ' '.join( [ ' '.join( env + cmd ) ] )
+
+    if DRYRUN:
+        if not silent:
+            message( [ '[DRY]' ] + [ cmd_str ], log=log_fs )
+        return True
+    if ERROR:
+        if not silent:
+            message( [ MSG_PREFIX ] +
+                     [ cmd_str ] +
+                     [ '-- execution skipped due to prev. error' ],
+                     log=log_fs )
+        return False
+
+    try:
+        shell_cmd = [ '/bin/sh', '-c', cmd_str ]
+        if not silent:
+            message( [ MSG_PREFIX ] + [ cmd_str ], newline=False, log=log_fs )
+            message( [], newline=True, log=log_fs, out=None )
+        proc = sp.Popen( shell_cmd, close_fds=True,
+                         stdout=log_fs, stderr=log_fs )
+
+        if not silent:
+            message( ' ', newline=False )
+        inctab = [ ( '.',       1,       10 ),
+                   ( '.',       6,       60 ),
+                   ( '.',      60,      360 ),
+                   ( '.',     360,     3600 ),
+                   ( '.',    3600,  24*3600 ),
+                   ( '.', 24*3600, 9999*999 ) ]
+        t = 0
+        for ( dot, inc, tmax ) in inctab:
+            ( ret, t ) = do_poll( proc, t, dot, inc, tmax, log_fs, silent )
+            if ret is not None:
+                time.sleep( 1 )     # wait for stdout/stderr flushing
+                return ret
+    except Exception as e:
+        err_msg( [ '\nException:', e ], log=log_fs )
+        return False
+
 def git_clone( dir, url, branch, log_fs ):
     if branch != '':
         if execute( dir, [ 'git', 'clone', '-b', branch, url ], log_fs ):
@@ -284,7 +331,7 @@ try:
         nowstr = datetime.datetime.now().strftime( '%Y-%m-%d %H:%M:%S' )
         print( '#', nowstr, file=f )
         for tkn in sys.argv:
-            print( tkn, end='', file=f )
+            print( tkn, end=' ', file=f )
         print( '', file=f )
 except:
     pass
@@ -793,52 +840,6 @@ def do_poll( proc, t, dot, inc, tmax, log_fs, silent ):
     if not silent:
         message( [ ' - OK' ], log=log_fs )
     return True, t
-
-def execute( wd, cmd, log_fs, silent=False, env=[] ):
-    "execute a Linux command"
-    global ERROR
-
-    if DRYRUN:
-        if not silent:
-            message( [ '[DRY]' ] + cmd, log=log_fs )
-        return True
-    if ERROR:
-        if not silent:
-            message( [ MSG_PREFIX ] +
-                     cmd +
-                     [ '-- execution skipped due to prev. error' ],
-                     log=log_fs )
-        return False
-
-    try:
-        if not silent:
-            message( [ MSG_PREFIX ] + env + cmd, newline=False, log=log_fs )
-            message( [], newline=True, log=log_fs, out=None )
-        if wd is not None:
-            cmd_list = [ 'cd', wd, '&&' ] + cmd
-        else:
-            cmd_list = cmd
-        shell_cmd = [ '/bin/sh', '-c', ' '.join( env + cmd_list ) ]
-        proc = sp.Popen( shell_cmd, close_fds=True,
-                         stdout=log_fs, stderr=log_fs )
-
-        if not silent:
-            message( ' ', newline=False )
-        inctab = [ ( '.',       1,       10 ),
-                   ( '.',       6,       60 ),
-                   ( '.',      60,      360 ),
-                   ( '.',     360,     3600 ),
-                   ( '.',    3600,  24*3600 ),
-                   ( '.', 24*3600, 9999*999 ) ]
-        t = 0
-        for ( dot, inc, tmax ) in inctab:
-            ( ret, t ) = do_poll( proc, t, dot, inc, tmax, log_fs, silent )
-            if ret is not None:
-                time.sleep( 1 )     # wait for stdout/stderr flushing
-                return ret
-    except Exception as e:
-        err_msg( [ '\nException:', e ], log=log_fs )
-        return False
 
 def is_already_installed( prefix, how, pip_ver, centos ):
     global spack_path
@@ -1464,7 +1465,7 @@ if not ARGS.sudo and DRYRUN:
             warn_newline = True
             message( [] )
         warn_msg( [ "'--sudo' option is required with yum and docker installations" ] )
-if not ARGS.centos is []:
+if centos_list != []:
     if not 'docker' in how_list:
         if not warn_newline:
             warn_newline = True
