@@ -152,6 +152,7 @@ FLAG_QUIET    = False
 FLAG_YES      = False
 SUDO_ERR      = False
 ERROR         = False
+DOCKER_ONLY   = False
 
 def mesg( words, newline, fs ):
     "general print message func"
@@ -277,8 +278,7 @@ def get_centos_version():
                     ver = int( verstr.split( '.' ).pop( 0 ) )
                     return ver
     except Exception:
-        err_msg( [ "Not a CentOS distribution" ] )
-        sys.exit( 1 )
+        return None
 
 def cpu_arch():
     "obtain CPU architecture"
@@ -493,6 +493,8 @@ if 'yum' in how_list:
     elif not is_privileged( None ):
         how_list.remove( 'yum' )
 if 'docker' in how_list:
+    if len( how_list ) == 1:
+        DOCKER_ONLY = True
     if not check_command( 'docker' ):
         warn_msg( [ "'docker' command not found -- docker installation skipped" ] )
         how_list.remove( 'docker' )
@@ -507,7 +509,7 @@ if 'docker' in how_list:
             elif not centos in centos_list:
                 centos_list.append( centos )
         if centos_list is []:
-            warn_msg( [ "Docker installation skipped" ] )
+            warn_msg( [ "Docker installation skipped since no CentOS version specified" ] )
             how_list.remove( 'docker' )
 if 'spack' in how_list:
     if check_command( 'spack' ):
@@ -526,10 +528,11 @@ if how_list == []:
     ERROR = True
 
 ## check Linux distribution and version
-centos_version = get_centos_version()
-if not centos_version in centos_supported:
-    err_msg( [ 'RedHat/CentOS-'+str(centos_version), 'is not supported' ] )
-    sys.exit( 1 )
+if not DOCKER_ONLY:
+    centos_version = get_centos_version()
+    if not centos_version in centos_supported:
+        err_msg( [ 'RedHat/CentOS-'+str(centos_version), 'is not supported' ] )
+        sys.exit( 1 )
 
 ## Check PiP version
 version = expand( ARGS.version )
@@ -675,7 +678,7 @@ def check_prefix( pref ):
                 query_prefix = True # never ask again
     return True
 
-def prefix_path( prefix, how, ver ):
+def prefix_path( prefix, how, ver, centos ):
     "make the prefix path"
     global ERROR
 
@@ -683,14 +686,14 @@ def prefix_path( prefix, how, ver ):
         return prefix
     return os.path.join( prefix,
                          arch + '_' +
-                         'centos-' + str( centos_version ) + '_' +
+                         'centos-' + str( centos ) + '_' +
                          how + '_' +
                          'pip-' + str( ver ) )
 
-def create_prefix( prefix, how, ver ):
+def create_prefix( prefix, how, ver, centos ):
     "create the prefix directory"
 
-    pdir = prefix_path( prefix, how, ver )
+    pdir = prefix_path( prefix, how, ver, centos )
     if DRYRUN:
         return pdir
     try:
@@ -729,20 +732,20 @@ def delete_work_dir( wdir ):
 
         except:
             if retry == 0:
-                message( [ 'gave up' ] )
+                message( [ 'GAVE UP' ] )
                 return False
-            message( [ 'retrying.. ' ], newline=False )
+            message( [ 'retrying..' ], newline=False )
             time.sleep( retry_wait )
             retry_wait *= 2
             retry -= 1
             continue
 
 # check and create work dir
-def work_path( work, how, ver ):
+def work_path( work, how, ver, centos ):
     "create work directory path"
     path = os.path.join( work,
                          arch + '_' +
-                         'centos-' + str( centos_version ) + '_' +
+                         'centos-' + str( centos ) + '_' +
                          how + '_' +
                          'pip-' + str( ver ) )
     return path
@@ -911,7 +914,7 @@ def install_docker( pip_ver, centos, log_fs ):
             err_msg( [ 'Failed to remove existing image', docker_pip ],
                        log=log_fs )
             return False, retuple
-    message( [ MSG_PREFIX1, 'Pulling existing image', docker_pip ], log=log_fs )
+    message( [ MSG_PREFIX1, 'Pulling Docker image', docker_pip ], log=log_fs )
     if not execute( None, sudo_cmd + [ 'docker', 'pull', docker_pip ], log_fs ):
         return False, retuple
     return True, retuple
@@ -928,7 +931,7 @@ def install_spack( prefix, how, pip_ver, log_fs ):
         return False, retuple
 
     if spack_path is None:
-        prefix_dir = create_prefix( prefix, how, pip_ver )
+        prefix_dir = create_prefix( prefix, how, pip_ver, centos_version )
         if prefix_dir is None:
             return False, retuple
         ( url, bsnam ) = spack_url()
@@ -1034,7 +1037,7 @@ def install_git( prefix, repo, pip_ver, work_dir, log_fs  ):
                  log=log_fs )
         return False, retuple
 
-    prefix_dir = create_prefix( prefix, repo, pip_ver )
+    prefix_dir = create_prefix( prefix, repo, pip_ver, centos_version )
     if prefix_dir is None:
         return False, retuple
     retuple = ( 'git', git_pip, prefix_dir )
@@ -1218,7 +1221,7 @@ for install in list_install:
         else:
             list_pass0.append( ( how, ver, centos ) )
     else:
-        prefdir = prefix_path( prefix_dir, how, ver )
+        prefdir = prefix_path( prefix_dir, how, ver, centos )
         if not is_ready( how, arch, centos, ver ) :
             list_not_ready.append( ( how, ver, centos_version ) )
         elif is_already_installed( prefdir, how, ver, centos_version ) and FLAG_NOUPDATE:
@@ -1229,7 +1232,9 @@ for install in list_install:
 # check the prefix (install) directories
 
 for ( how, ver, centos ) in list_pass0:
-    if check_prefix( prefix_path( prefix_dir, how, ver ) ):
+    if how == 'docker':
+        list_pass1.append( ( how, ver, centos ) )
+    elif check_prefix( prefix_path( prefix_dir, how, ver, centos ) ):
         list_pass1.append( ( how, ver, centos ) )
     else:
         list_skipped.append( ( how, ver, centos ) )
@@ -1239,7 +1244,7 @@ for ( how, ver, centos ) in list_pass0:
 list_del_work = []
 for ( how, ver, centos ) in list_pass1:
     # list_del_work may be updated in check_work()
-    if check_work( work_path( work_dir, how, ver ) ):
+    if check_work( work_path( work_dir, how, ver, centos ) ):
         list_ready.append( ( how, ver, centos ) )
     else:
         list_skipped.append( ( how, ver, centos ) )
@@ -1249,7 +1254,8 @@ ERROR = False
 ### NOW we can actually do the installation(s)
 
 message( [] )
-message( [ 'RedHat/CentOS:\t\t', centos_version ] )
+if not DOCKER_ONLY:
+    message( [ 'RedHat/CentOS:\t\t', centos_version ] )
 message( [ 'CPU Architecture:\t', arch ])
 
 if list_ready != []:
@@ -1257,14 +1263,14 @@ if list_ready != []:
     message( [ 'List of installations' ] )
     for ( how, ver, centos ) in list_ready:
         message( [ how.upper(), '\tPiP-v' + str( ver ) ] )
-        prefdir = prefix_path( prefix_dir, how, ver )
+        prefdir = prefix_path( prefix_dir, how, ver, centos )
         if how == 'spack':
             message( [ '  Prefix dir:\t', prefdir ] )
         elif how == 'docker':
-            message( [ '  Docker Tag:\t', resource_id( how, centos, ver ) ] )
+            message( [ '  Docker image:\t', resource_id( how, centos, ver ) ] )
         elif how == 'github':
             message( [ '  Prefix dir:\t', prefdir ] )
-            message( [ '  Work dir:\t', work_path( work_dir, how, ver ) ] )
+            message( [ '  Work dir:\t', work_path( work_dir, how, ver, centos ) ] )
 
 if list_skipped != []:
     message( [] )
@@ -1297,8 +1303,8 @@ if list_noupdate != []:
         warn_msg( [ 'The followings are already installed and',
                     'installtion will be skipped (--noupdate)' ] )
 
-    for ( how, ver ) in list_noupdate:
-        message( [ '\t'+how.upper()+': PiP-v' + str( ver ) ] )
+    for ( how, ver, centos ) in list_noupdate:
+        message( [ '\t'+how.upper()+': PiP-v' + str( ver ), 'CentOS:', centos ] )
 
 if list_del_work != []:
     message( [] )
@@ -1338,7 +1344,7 @@ for ( how, pip_ver, centos ) in list_ready:
     ERROR = False
     message( [] )
 
-    ( wdir, log_path ) = create_work( work_path( work_dir, how, pip_ver ) )
+    ( wdir, log_path ) = create_work( work_path( work_dir, how, pip_ver, centos ) )
     if wdir is None:
         NULL_FS.close()
         sys.exit( 1 )
@@ -1447,9 +1453,13 @@ if not DRYRUN:
             message( [ 'YUM: PiP is installed at /opt/process-in-process/' ] )
         if docker_success:
             message( [ 'DOCKER: PiP is installed at /opt/process-in-process.  To run PiP Docker image:' ] )
-            message( [ '     $ [sudo] docker run -it <PIP_DOCKER_TAG> /bin/bash' ] )
-            message( [ '     PIP_DOCKER_TAGS: ' ], newline=False )
-            message( list_docker_images )
+            message( [ '     $ [sudo] docker run -it <PIP_DOCKER_IMAGE> /bin/bash' ] )
+            if len( list_docker_images ) > 1:
+                message( [ '     PIP_DOCKER_IMAGES: ' ] )
+            else:
+                message( [ '     PIP_DOCKER_IMAGE: ' ] )
+            for docker_image in list_docker_images:
+                message( [ '            ', docker_image ] )
 
 # check inter-option constraints
 warn_newline = False
