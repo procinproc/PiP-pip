@@ -91,14 +91,14 @@ gnu_branch_tab = { 7 : ( 'centos/glibc-2.17-260.el7.pip.branch',
                    8 : ( 'centos/glibc-2.28-72.el8_1.1.pip.branch',
                          'centos/gdb-8.2-12.el8.pip.branch' ) }
 
-docker_tagtab = { ( 'x86_64',  7, 2 ) : 'process-in-process/pip:2-centos7-amd64',
-                  ( 'aarch64', 7, 2 ) : 'process-in-process/pip:2-centos7-arm64v8',
-                  ( 'x86_64',  8, 2 ) : 'process-in-process/pip:2-centos8-amd64',
-                  ( 'aarch64', 8, 2 ) : 'process-in-process/pip:2-centos8-arm64v8',
-                  ( 'x86_64',  7, 3 ) : 'process-in-process/pip:3-centos7-amd64',
-                  ( 'aarch64', 7, 3 ) : 'process-in-process/pip:3-centos7-arm64v8',
-                  ( 'x86_64',  8, 3 ) : 'process-in-process/pip:3-centos8-amd64' ,
-                  ( 'aarch64', 8, 3 ) : 'process-in-process/pip:3-centos8-arm64v8' }
+docker_tagtab = { ( 'x86_64',  7, 2 ) : 'procinproc/process-in-process:2.HEAD-centos7',
+                  ( 'aarch64', 7, 2 ) : 'procinproc/process-in-process:2.HEAD-centos7',
+                  ( 'x86_64',  8, 2 ) : 'procinproc/process-in-process:2.HEAD-centos8',
+                  ( 'aarch64', 8, 2 ) : 'procinproc/process-in-process:2.HEAD-centos8',
+                  ( 'x86_64',  7, 3 ) : 'procinproc/process-in-process:3.HEAD-centos7',
+                  ( 'aarch64', 7, 3 ) : 'procinproc/process-in-process:3.HEAD-centos7',
+                  ( 'x86_64',  8, 3 ) : 'procinproc/process-in-process:3.HEAD-centos8',
+                  ( 'aarch64', 8, 3 ) : 'procinproc/process-in-process:3.HEAD-centos8' }
 
 def is_ready( how, arch, centos, pip_ver ):
     if ( arch, centos, pip_ver ) in not_ready[how]:
