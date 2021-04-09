@@ -32,7 +32,7 @@ Supported Linux (RHEL and CentOS are the guaranteed distributions):
 
 # Usage
 
-    $ [<PYTHON>] ./pip-pip <OPTIONS>
+    $ [sudo] [<PYTHON>] ./pip-pip <OPTIONS>
 
 `pip-pip` is designed to work and tested on both Python 2.7.5 and
 3.7.4. When `./pip-pip` does not work, try explicitly specifying
@@ -65,8 +65,14 @@ Supported Linux (RHEL and CentOS are the guaranteed distributions):
   differences.
 
 - `--sudo`
-  Allow `sudo` when installing with `docker`. To enable this
-  option, user must be a sudoer.
+  Allow `sudo` when installing Docker image(s). To enable this
+  option, user must be a sudoer. If this option does not work (by being asked password) 
+  try running `pip-pip` under the `sudo` command.
+
+- `--centos`
+  Specify RHEL/CentOS version (7 or 8). This options is only effective with the 
+  Docker installation. When `all` is specified, both RHEL/CentOS 7 and 8 images 
+  will be downloaded. 
 
 - `--yes`
   This option stops asking if the installing (prefix) directory will
