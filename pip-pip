@@ -1180,7 +1180,7 @@ work_dir   = os.path.realpath( os.path.expanduser( ARGS.work   ) )
 
 # check if work dir can be deleted
 common = os.path.commonprefix( [ work_dir, prefix_dir ] )
-if common is work_dir:          # this means work_dir includes prefix_dir
+if common == work_dir:          # this means work_dir includes prefix_dir
     if not FLAG_KEEP:
         err_msg( [ 'Work dir includes prefix dir and ' +
                    'work dir cannot be deleted.' ] )
@@ -1203,7 +1203,7 @@ if FLAG_NOUPDATE:
 
 for ver in pip_vers:
     for how in how_list:
-        if how is 'docker':
+        if how == 'docker':
             for centos in centos_list:
                 list_install.append( ( how, ver, centos ) )
         else:
@@ -1213,7 +1213,7 @@ for ver in pip_vers:
 
 for install in list_install:
     ( how, ver, centos ) = install
-    if how is 'docker':
+    if how == 'docker':
         if not is_ready( how, arch, centos, ver ):
             list_not_ready.append( ( how, ver, centos ) )
         elif is_already_installed( '', how, ver, centos ) and FLAG_NOUPDATE:
@@ -1279,7 +1279,7 @@ if list_skipped != []:
     else:
         warn_msg( [ 'The followings are skipped' ] )
 
-    for ( how, ver ) in list_skipped:
+    for ( how, ver, centos ) in list_skipped:
         message( [ '\t'+how.upper()+': PiP-v' + str( ver ) ] )
 
 if list_not_ready != []:
