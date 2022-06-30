@@ -100,7 +100,7 @@ docker_tagtab = { ( 'x86_64',  7, 2 ) : 'procinproc/process-in-process:2.HEAD-ce
                   ( 'x86_64',  8, 3 ) : 'procinproc/process-in-process:3.HEAD-centos8',
                   ( 'aarch64', 8, 3 ) : 'procinproc/process-in-process:3.HEAD-centos8' }
 
-def is_ready( how, arch, centos, pip_ver ):
+def is_ready( how, arch, pip_ver, centos ):
     if ( arch, centos, pip_ver ) in not_ready[how]:
         return False
     return True
@@ -207,6 +207,55 @@ def concat_urls( url0, url1 ):
     return urlparser.urljoin( url0+'/', url1 )
 
 NULL_FS = open( os.devnull, 'w' )
+
+def do_poll( proc, t, dot, inc, tmax, log_fs, silent ):
+    "do poll and output dots"
+
+    t0 = t
+    if t < 100:
+        delta = 0.2
+    elif t < 1000:
+        delta = 1.0
+    else:
+        delta = 10.0
+
+    td = 0.0
+    while True:
+        ret = proc.poll()
+        if ret is not None or t >= tmax:
+            if t < 60:
+                tu = t
+                unit = 's'
+            elif t < 3600:
+                tu = t / 60
+                unit = 'm'
+            else:
+                tu = t / 3600
+                unit = 'h'
+
+            if ret is None:
+                if not silent:
+                    message( [ str(int(tu))+unit ], newline=False )
+                return None, t
+            if not silent:
+                message( [ ' '+str(int(tu))+unit ], newline=False )
+            break
+        if td >= inc:
+            t += inc
+            td = 0.0
+            if not silent:
+                message( [ dot ], newline=False )
+
+        time.sleep( delta )
+        td += delta
+
+    if ret != 0:
+        if not silent:
+            message( [ ' - NG' ], log=log_fs )
+        return False, t
+    if not silent:
+        message( [ ' - OK' ], log=log_fs )
+    return True, t
 
 def execute( wd, cmd, log_fs, silent=False, env=[] ):
     "execute a Linux command"
@@ -580,7 +629,7 @@ if ARGS.ready != '':
             for cpu in arch_supported:
                 for linux in [ 7, 8 ]:
                     for pip in [ 2, 3 ]:
-                        if is_ready( how, cpu, linux, pip ):
+                        if is_ready( how, cpu, pip, linux ):
                             list_ready.append( ( how, cpu, linux, pip ) )
     elif ARGS.ready == 'ALL':
         for how in how_supported:
@@ -589,7 +638,7 @@ if ARGS.ready != '':
             for cpu in arch_supported:
                 for linux in [ 7, 8 ]:
                     for pip in [ 1, 2, 3 ]:
-                        if is_ready( how, cpu, linux, pip ):
+                        if is_ready( how, cpu, pip, linux ):
                             list_ready.append( ( how, cpu, linux, pip ) )
     elif ARGS.ready in [ 'arch', 'cpu' ]:
         for how in how_supported:
@@ -597,7 +646,7 @@ if ARGS.ready != '':
                 continue
             for linux in [ 7, 8 ]:
                 for pip in [ 1, 2, 3 ]:
-                    if is_ready( how, arch, linux, pip ):
+                    if is_ready( how, arch, pip, linux ):
                         list_ready.append( ( how, arch, linux, pip ) )
     elif ARGS.ready in [ 'linux', 'redhat', 'centos' ]:
         for how in how_supported:
@@ -605,14 +654,14 @@ if ARGS.ready != '':
                 continue
             for arch in arch_supported:
                 for pip in [ 1, 2, 3 ]:
-                    if is_ready( how, arch, centos_version, pip ):
+                    if is_ready( how, arch, pip, centos_version ):
                         list_ready.append( ( how, arch, centos_version, pip ) )
     else:
         for how in how_list:
             if how in [ 'yum', 'docker' ] and SUDO_ERR:
                 continue
             for pip in pip_vers:
-                if is_ready( how, arch, centos_version, pip ):
+                if is_ready( how, arch, pip, centos_version ):
                     list_ready.append( ( how, arch, centos_version, pip ) )
     if list_ready == []:
         message( [ 'Nothing ready' ] )
@@ -794,55 +843,6 @@ def check_file( file ):
     if DRYRUN:
         return True
     return os.path.isfile( file )
-
-def do_poll( proc, t, dot, inc, tmax, log_fs, silent ):
-    "do poll and output dots"
-
-    t0 = t
-    if t < 100:
-        delta = 0.2
-    elif t < 1000:
-        delta = 1.0
-    else:
-        delta = 10.0
-
-    td = 0.0
-    while True:
-        ret = proc.poll()
-        if ret is not None or t >= tmax:
-            if t < 60:
-                tu = t
-                unit = 's'
-            elif t < 3600:
-                tu = t / 60
-                unit = 'm'
-            else:
-                tu = t / 3600
-                unit = 'h'
-
-            if ret is None:
-                if not silent:
-                    message( [ str(int(tu))+unit ], newline=False )
-                return None, t
-            if not silent:
-                message( [ ' '+str(int(tu))+unit ], newline=False )
-            break
-        if td >= inc:
-            t += inc
-            td = 0.0
-            if not silent:
-                message( [ dot ], newline=False )
-
-        time.sleep( delta )
-        td += delta
-
-    if ret != 0:
-        if not silent:
-            message( [ ' - NG' ], log=log_fs )
-        return False, t
-    if not silent:
-        message( [ ' - OK' ], log=log_fs )
-    return True, t
 
 def is_already_installed( prefix, how, pip_ver, centos ):
     global spack_path
@@ -1087,7 +1087,7 @@ def install_git( prefix, repo, pip_ver, work_dir, log_fs  ):
             return False, retuple
     if not execute( pip_dir, [ 'make' ], log_fs ):
         return False, retuple
-    if not execute( pip_dir, [ 'make install' ], log_fs ):
+    if not execute( pip_dir, [ 'make', 'install' ], log_fs ):
         return False, retuple
     if not execute( pip_dir, [ 'make', 'doc-install' ], log_fs ):
         return False, retuple
@@ -1222,7 +1222,7 @@ for install in list_install:
             list_pass0.append( ( how, ver, centos ) )
     else:
         prefdir = prefix_path( prefix_dir, how, ver, centos )
-        if not is_ready( how, arch, centos, ver ) :
+        if not is_ready( how, arch, ver, centos ) :
             list_not_ready.append( ( how, ver, centos_version ) )
         elif is_already_installed( prefdir, how, ver, centos_version ) and FLAG_NOUPDATE:
             list_noupdate.append( ( how, ver, centos_version ) )
