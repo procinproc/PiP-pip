@@ -393,7 +393,7 @@ parser = argparse.ArgumentParser( description='pip-pip: Process-in-Process '+
                                   add_help = True )
 parser.add_argument( '--how', '-H',
                      help    = 'specifying how to install ' \
-                         '[yum|docker|spack|GITHUB]',
+                         '[GITHUB|docker|spack|yum]',
                      type    = str,
                      action  = 'append' )
 parser.add_argument( '--version', '-v',
@@ -533,7 +533,7 @@ else:
     how_list = howlist
 
 if len( how_list ) > 1 and not FLAG_SUBDIR:
-    err_msg( [ 'Multiple versions cannot be installed without having sub-directoris' ]  )
+    err_msg( [ 'Multiple versions cannot be installed without having sub-directories' ]  )
 
 if 'yum' in how_list:
     if not check_command( 'yum' ):
@@ -690,14 +690,18 @@ def query( prompt, ans ):
     try:
         while True:             # python2
             choice = raw_input( prompt ).lower()
-            if choice != '' and choice[0] in ans:
+            if choice == '':
+                return ans[0]
+            if choice[0] in ans:
                 return choice[0]
             continue
     except:
         try:
             while True:         # python3
                 choice = input( prompt ).lower()
-                if choice != '' and choice[0] in ans:
+                if choice == '':
+                    return ans[0]
+                if choice[0] in ans:
                     return choice[0]
                 continue
         except:
@@ -719,12 +723,12 @@ def check_prefix( pref ):
         if not FLAG_YES and not query_prefix:
             warn_msg( [ 'Prefix directory already exists: ', pref ] )
             ans = query( 'Are you sure to install into the prefix directory? ' \
-                         "'yes', 'all' or 'no' [Y/A/N]: ",
+                         "'yes', 'all' or 'no' [Y/a/n]: ",
                          'yan' )
-            if ans == 'n':
-                return False
             if ans == 'a':
                 query_prefix = True # never ask again
+            if ans == 'n':
+                return False
     return True
 
 def prefix_path( prefix, how, ver, centos ):
@@ -812,7 +816,7 @@ def check_work( work ):
         if not FLAG_YES and not query_work:
             warn_msg( [ 'Work directory already exists:', work ] )
             ans = query( 'Delete work directory before install? ' \
-                         "'yes', 'all' or 'no' [Y/A/N]: ",
+                         "'yes', 'all' or 'no' [Y/a/n]: ",
                          'yan' )
             if ans == 'n':
                 ERROR = True
@@ -1112,6 +1116,7 @@ def install_git( prefix, repo, pip_ver, work_dir, log_fs  ):
             try:
                 psproc = sp.Popen( [ build_script, '--missing' ],
                                    stdout=sp.PIPE, stderr=log_fs )
+                wget_list = []
                 while True:
                     mod = psproc.stdout.readline()
                     if mod == '':
@@ -1120,17 +1125,19 @@ def install_git( prefix, repo, pip_ver, work_dir, log_fs  ):
                     if missing == []:
                         break
                     [ pkgname, url ] = missing
-                    installed = wget_install( work_dir,
-                                              prefix_dir,
-                                              pkgname,
-                                              url,
-                                              log_fs )
-                    if not installed in inst_pkgs:
-                        inst_pkgs += [ installed ]
+                    wget_list += [ ( pkgname, url ) ]
             except Exception as e:
                 err_msg( [ build_script+' --missing: FAILED', e ],
                          log=log_fs )
                 return False, retuple
+            for ( pkgname, url ) in wget_list:
+                installed = wget_install( work_dir,
+                                          prefix_dir,
+                                          pkgname,
+                                          url,
+                                          log_fs )
+                if not installed in inst_pkgs:
+                    inst_pkgs += [ installed ]
 
         message( [ MSG_PREFIX1, 'Building', repo_gdb ], log=log_fs )
         gdb_dir = os.path.join( work_dir, pip + '-gdb' )
@@ -1321,7 +1328,7 @@ if list_ready == []:
     sys.exit( 1 )
 
 if not FLAG_YES and not DRYRUN:
-    ans = query( '\nProceed? [Y/N]: ', 'yn' )
+    ans = query( '\nProceed? [Y/n]: ', 'yn' )
     if ans == 'n':
         NULL_FS.close()
         sys.exit( 1 )
