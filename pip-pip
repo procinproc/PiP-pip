@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/bin/sh
 # -*- mode:python -*-
 
 # $PIP_license: <Simplified BSD License>
@@ -34,7 +34,21 @@
 # User ML: procinproc-users@googlegroups.com
 # $
 
-"PiP-pip: PiP (Process-in-Process) package installation program"
+# This file is bilingual. The following shell code finds our preferred python.
+# Following line is a shell no-op, and starts a multi-line Python comment.
+# See https://stackoverflow.com/a/47886254
+""":"
+# PiP-pip: PiP (Process-in-Process) package installation program
+#
+# Find a suitable python interpreter (adapt for your specific needs) 
+for cmd in python3 python2 python; do
+   command -v > /dev/null $cmd && exec $cmd $0 "$@"
+done
+echo "==> Error: pip-pip could not find a python interpreter!" >&2
+exit 1
+":"""
+# Line above is a shell no-op, and ends a python multi-line comment.
+# The code above runs this file with our preferred python interpreter.
 
 from __future__ import print_function
 import datetime
